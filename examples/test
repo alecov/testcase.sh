@@ -1,0 +1,89 @@
+#!/bin/bash
+
+srcdesc="Self-test for testcase.sh"
+source testcase.sh
+
+# Test success.
+testcase test-success <<-::
+	echo success
+	sleep 3
+	true
+::
+
+# Test failure.
+testcase test-failure <<-::
+	echo failure
+	sleep 3
+	false
+::
+
+# Test monitor() (perf or time).
+testcase test-monitor <<-::
+	monitor sleep 2
+::
+
+# Test extwait with no process failing.
+testcase test-pipeline-1 <<-::
+	{ sleep 2; true; } &
+	{ sleep 2; true; } &
+	{ sleep 2; true; } &
+	{ sleep 2; true; } &
+	{ sleep 3; true; } &
+	{ sleep 3; true; } &
+	waitall=(%1 %2)
+	waitany=(%3 %4)
+	waiterr=(%5 %6)
+	extwait || result=\$?
+	echo Result is: \$result
+	exit \$result
+::
+
+# Test extwait with waitall processes failing.
+testcase test-pipeline-2 <<-::
+	{ sleep 2; true; } &
+	{ sleep 1; false; } &
+	{ sleep 2; true; } &
+	{ sleep 2; true; } &
+	{ sleep 3; true; } &
+	{ sleep 3; true; } &
+	waitall=(%1 %2)
+	waitany=(%3 %4)
+	waiterr=(%5 %6)
+	extwait || result=\$?
+	echo Result is: \$result
+	exit \$result
+::
+
+# Test extwait with waitany processes failing.
+testcase test-pipeline-3 <<-::
+	{ sleep 2; true; } &
+	{ sleep 2; true; } &
+	{ sleep 2; true; } &
+	{ sleep 1; false; } &
+	{ sleep 3; true; } &
+	{ sleep 3; true; } &
+	waitall=(%1 %2)
+	waitany=(%3 %4)
+	waiterr=(%5 %6)
+	extwait || result=\$?
+	echo Result is: \$result
+	exit \$result
+::
+
+# Test extwait with waiterr processes failing.
+testcase test-pipeline-4 <<-::
+	{ sleep 2; true; } &
+	{ sleep 2; true; } &
+	{ sleep 2; true; } &
+	{ sleep 2; true; } &
+	{ sleep 3; true; } &
+	{ sleep 1; false; } &
+	waitall=(%1 %2)
+	waitany=(%3 %4)
+	waiterr=(%5 %6)
+	extwait || result=\$?
+	echo Result is: \$result
+	exit \$result
+::
+
+echo Finished.
