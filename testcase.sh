@@ -37,6 +37,7 @@ fi
 : ${timeout:=inf}
 : ${logdir:=log}
 : ${logext:=log}
+: ${kill:=KILL}
 
 export logdir
 export logext
@@ -133,7 +134,7 @@ testcase() {
 		[[ -z $logcaterr ]] && head -vn-0 "$testlogdir"/*.err >>"$testlog"
 		[[ -z $logcatlog ]] && head -vn-0 "$testlogdir"/*.log >>"$testlog"
 		rmdir -p "$testlogdir"
-		kill $(jobs -p); wait
+		kill -"$kill" -- $(jobs -p); wait
 		echo -n ${RS}
 	}
 	trap __testcase_cleanup EXIT
@@ -145,7 +146,7 @@ testcase() {
 	done &
 	local result=0
 	local command=(timeout --foreground "$timeout" bash -c
-	"set -m; trap 'kill -- -\$!' EXIT; bash -e & exec &>/dev/null; wait %1")
+	"set -m; trap 'kill -${kill@Q} -- -\$!' EXIT; bash -e & exec &>/dev/null; wait %1")
 	[[ $unshare != 0 ]] && command=(unshare -UrmiCupf --mount-proc "${command[@]}")
 	set -m; "${command[@]}" "$@" &>"$testlog" || result=$?; set +m
 	{ kill %1; wait %1; } 2>/dev/null || true; echo -n "$(BS 6): "
