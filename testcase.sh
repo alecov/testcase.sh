@@ -87,39 +87,76 @@ fi
 { perfargs=-m256; perf record $perfargs -qo/dev/null true; } } 2>/dev/null &&
 monitor() { perf record $perfargs -o"$testlogdir"/"$(basename "$1")".perf -- "$@"; } ||
 { monitor() { time "$@"; }; perf=0; }
+export -f monitor
+
+# jobpid(): outputs jobs PIDs from jobspecs (%*).
+#  Unrecognized jobs go unmolested. Not the same as `jobs -p`, since it treats
+#  all arguments as jobspecs.
+jobpid() {
+	local arg; for arg; do
+		[[ $arg == %* ]] &&
+		jobs -p "$arg" 2>/dev/null ||
+		printf %s\\n "$arg"
+	done
+}
+export -f jobpid
 
 # extwait(): waits for several jobs:
 #  All jobs in $waitall, $waitany, $waiterr and $@ are waited for.
 #  If all jobs in $waitall finish, return the last failed exit status (or zero).
 #  If any jobs in $waitany finish, return the last failed exit status (or zero).
 #  If any job in $waiterr finishes, return 127.
+#
+#  If a finished job is in both $waitall and $waitany, return an error only if
+#  the job finished with an error.
 extwait() {
-	local result wait job; while true; do
-		wait=; wait -n \
-			${waitall[@]} \
-			${waitany[@]} \
-			${waiterr[@]} $@ 2>/dev/null || wait=$?
-		[[ $wait == 127 ]] && break
+	waitall=($(jobpid "${waitall[@]}"))
+	waitany=($(jobpid "${waitany[@]}"))
+	waiterr=($(jobpid "${waiterr[@]}"))
+	local args=($(jobpid "$@"))
+	local result=0 waited wait; while true; do
+		local waited_all=
+		local waited_any=
+		local waited_err=
+		local index
+		[[ -z ${waitall[@]} ]] && return $result
+		wait=; wait -np waited \
+			"${waitall[@]}" \
+			"${waitany[@]}" \
+			"${waiterr[@]}" \
+			"${args[@]}" || wait=$?
+		[[ -z $waited ]] && return 127
 		[[ -n $wait ]] && result=$wait
-		kill -0 ${waitall[@]} 2>/dev/null || break
-		for job in ${waitany[@]}; do
-			kill -0 $job 2>/dev/null || break 2
+		for index in ${!args[@]}; do
+			[[ ${args[index]} == $waited ]] && unset 'args[index]'
 		done
-		for job in ${waiterr[@]}; do
-			if ! kill -0 $job 2>/dev/null; then
-				result=127
-				break 2
+		for index in ${!waitall[@]}; do if [[ ${waitall[index]} == $waited ]]; then
+			waited_all=1
+			unset 'waitall[index]'
+		fi; done
+		for index in ${!waitany[@]}; do if [[ ${waitany[index]} == $waited ]]; then
+			waited_any=1
+			unset 'waitany[index]'
+		fi; done
+		for index in ${!waiterr[@]}; do if [[ ${waiterr[index]} == $waited ]]; then
+			waited_err=1
+			unset 'waiterr[index]'
+		fi; done
+		[[ -n $waited_err ]] && return 127
+		if [[ -n $waited_any ]]; then
+			if [[ -n $waited_all ]]; then
+				[[ -n $wait ]] && return $wait
+			else
+				return $result
 			fi
-		done
+		fi
 	done
-	unset waitall waitany waiterr
-	return $result
 }
+export -f extwait
 
 trap 'set +e; exec &>/dev/null; kill -- $(jobs -p); wait; rm -rf "$tempdir"' EXIT
 export tempdir="$(mktemp -d)"
 export unshare perf perfargs
-export -f monitor extwait
 declare -Ag testcase_count
 
 testcase() {
@@ -128,7 +165,7 @@ testcase() {
 	export testlogdir=$logdir$testname/
 	export testlog=$logdir$testname$logext
 	rm -rf "$testlogdir" "$testlog"; (
-	__testcase_cleanup() {
+	cleanup() {
 		set +e; exec 2>/dev/null
 		[[ -z $logcatout ]] && head -vn-0 "$testlogdir"/*.out >>"$testlog"
 		[[ -z $logcaterr ]] && head -vn-0 "$testlogdir"/*.err >>"$testlog"
@@ -137,7 +174,7 @@ testcase() {
 		kill -"$kill" -- $(jobs -p); wait
 		echo -n ${RS}
 	}
-	trap __testcase_cleanup EXIT
+	trap cleanup EXIT
 	mkdir -p "$testlogdir"
 	echo -n "${BF}${F1}•${RS}${BF} Running testcase \"${F6}$testname${RS}${BF}\"...   "
 	[[ $spinner != 0 ]] && while true; do
