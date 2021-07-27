@@ -1,5 +1,3 @@
-#!/bin/bash
-
 @() {
 local -; set -e
 BS() { :; }; export -f BS
@@ -25,6 +23,8 @@ else
 	spinner=0
 fi
 
+selfdir=$(realpath "$BASH_SOURCE")
+selfdir=${selfdir%/*}
 source=${BASH_SOURCE[-1]}
 if [[ -z $srcname ]]; then
 	srcname=$source
@@ -50,7 +50,7 @@ cat <<-::
 ::
 
 is_docker() { grep -q /docker/ /proc/1/cgroup; }
-if [[ $unshare != 0 ]] && ! unshare -UrmiCupf --mount-proc true; then
+if [[ $unshare != 0 ]] && ! unshare -Upf --mount-proc true; then
 	is_docker || cat <<-:: >&2
 		Your system is missing the necessary setup for unshare(1).
 		If you are running a Debian derivative, you need to allow
@@ -89,70 +89,7 @@ monitor() { perf record $perfargs -o"$testlogdir"/"$(basename "$1")".perf -- "$@
 { monitor() { time "$@"; }; perf=0; }
 export -f monitor
 
-# jobpid(): outputs jobs PIDs from jobspecs (%*).
-#  Unrecognized jobs go unmolested. Not the same as `jobs -p`, since it treats
-#  all arguments as jobspecs.
-jobpid() {
-	local arg; for arg; do
-		[[ $arg == %* ]] &&
-		jobs -p "$arg" 2>/dev/null ||
-		printf %s\\n "$arg"
-	done
-}
-export -f jobpid
-
-# extwait(): waits for several jobs:
-#  All jobs in $waitall, $waitany, $waiterr and $@ are waited for.
-#  If all jobs in $waitall finish, return the last failed exit status (or zero).
-#  If any jobs in $waitany finish, return the last failed exit status (or zero).
-#  If any job in $waiterr finishes, return 127.
-#
-#  If a finished job is in both $waitall and $waitany, return an error only if
-#  the job finished with an error.
-extwait() {
-	waitall=($(jobpid "${waitall[@]}"))
-	waitany=($(jobpid "${waitany[@]}"))
-	waiterr=($(jobpid "${waiterr[@]}"))
-	local args=($(jobpid "$@"))
-	local result=0 waited wait; while true; do
-		local waited_all=
-		local waited_any=
-		local waited_err=
-		local index
-		[[ -z ${waitall[@]} ]] && return $result
-		wait=; wait -np waited \
-			"${waitall[@]}" \
-			"${waitany[@]}" \
-			"${waiterr[@]}" \
-			"${args[@]}" || wait=$?
-		[[ -z $waited ]] && return 127
-		[[ -n $wait ]] && result=$wait
-		for index in ${!args[@]}; do
-			[[ ${args[index]} == $waited ]] && unset 'args[index]'
-		done
-		for index in ${!waitall[@]}; do if [[ ${waitall[index]} == $waited ]]; then
-			waited_all=1
-			unset 'waitall[index]'
-		fi; done
-		for index in ${!waitany[@]}; do if [[ ${waitany[index]} == $waited ]]; then
-			waited_any=1
-			unset 'waitany[index]'
-		fi; done
-		for index in ${!waiterr[@]}; do if [[ ${waiterr[index]} == $waited ]]; then
-			waited_err=1
-			unset 'waiterr[index]'
-		fi; done
-		[[ -n $waited_err ]] && return 127
-		if [[ -n $waited_any ]]; then
-			if [[ -n $waited_all ]]; then
-				[[ -n $wait ]] && return $wait
-			else
-				return $result
-			fi
-		fi
-	done
-}
-export -f extwait
+source "$selfdir"/util.sh
 
 trap 'set +e; exec &>/dev/null; kill -- $(jobs -p); wait; rm -rf "$tempdir"' EXIT
 export tempdir="$(mktemp -d)"
@@ -184,7 +121,7 @@ testcase() {
 	local result=0
 	local command=(timeout --foreground "$timeout" bash -c
 	"set -m; trap 'kill -${kill@Q} -- -\$!' EXIT; bash -e & exec &>/dev/null; wait %1")
-	[[ $unshare != 0 ]] && command=(unshare -UrmiCupf --mount-proc "${command[@]}")
+	[[ $unshare != 0 ]] && command=(unshare -Upf --mount-proc "${command[@]}")
 	set -m; "${command[@]}" "$@" &>"$testlog" || result=$?; set +m
 	{ kill %1; wait %1; } 2>/dev/null || true; echo -n "$(BS 6): "
 	head -vn-0 "$testlogdir"/*.out >>"$testlog" 2>/dev/null || true; logcatout=1
