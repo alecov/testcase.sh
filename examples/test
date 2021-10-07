@@ -30,9 +30,9 @@ testcase test-pipeline-1 <<-::
 	{ sleep 2; true; } &
 	{ sleep 3; true; } &
 	{ sleep 3; true; } &
-	waitall=(%1 %2)
-	waitany=(%3 %4)
-	waiterr=(%5 %6)
+	waitall=([%1]= [%2]=)
+	waitany=([%3]= [%4]=)
+	waiterr=([%5]= [%6]=)
 	extwait || result=\$?
 	echo Result is: \$result
 	exit \$result
@@ -46,9 +46,9 @@ testcase test-pipeline-2 <<-::
 	{ sleep 2; true; } &
 	{ sleep 3; true; } &
 	{ sleep 3; true; } &
-	waitall=(%1 %2)
-	waitany=(%3 %4)
-	waiterr=(%5 %6)
+	waitall=([%1]= [%2]=)
+	waitany=([%3]= [%4]=)
+	waiterr=([%5]= [%6]=)
 	extwait || result=\$?
 	echo Result is: \$result
 	exit \$result
@@ -62,9 +62,9 @@ testcase test-pipeline-3 <<-::
 	{ sleep 1; false; } &
 	{ sleep 3; true; } &
 	{ sleep 3; true; } &
-	waitall=(%1 %2)
-	waitany=(%3 %4)
-	waiterr=(%5 %6)
+	waitall=([%1]= [%2]=)
+	waitany=([%3]= [%4]=)
+	waiterr=([%5]= [%6]=)
 	extwait || result=\$?
 	echo Result is: \$result
 	exit \$result
@@ -78,9 +78,9 @@ testcase test-pipeline-4 <<-::
 	{ sleep 2; true; } &
 	{ sleep 3; true; } &
 	{ sleep 1; false; } &
-	waitall=(%1 %2)
-	waitany=(%3 %4)
-	waiterr=(%5 %6)
+	waitall=([%1]= [%2]=)
+	waitany=([%3]= [%4]=)
+	waiterr=([%5]= [%6]=)
 	extwait || result=\$?
 	echo Result is: \$result
 	exit \$result
