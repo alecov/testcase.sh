@@ -8,7 +8,6 @@ jobpid() {
 		printf %s\\n "$arg"
 	done
 }
-export -f jobpid
 
 # extwait(): waits for several jobs:
 #  All jobs in $waitall, $waitany, $waiterr and $@ are waited for.
@@ -87,7 +86,6 @@ extwait() {
 		fi
 	done
 }
-export -f extwait
 
 # spawn_*(): spawns and controls a named parallel process.
 #  These functions spawns a parallel process, redirecting output to logfiles
@@ -107,9 +105,6 @@ spawn_waiterr() {
 	"$@" >"$testlogdir"/"$name".out 2>"$testlogdir"/"$name".err &
 	waiterr[$!]=
 }
-export -f spawn_waitall
-export -f spawn_waitany
-export -f spawn_waiterr
 
 # semwait(): waits for a semaphore fd (a pipe) and synchronizes with all
 # processes listed for `extwait`.
@@ -120,4 +115,3 @@ semwait() {
 		read -u${1:-3} & waitall[$!]= waitany[$!]=; extwait
 	done
 }
-export -f semwait

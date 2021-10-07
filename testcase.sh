@@ -89,8 +89,6 @@ monitor() { perf record $perfargs -o"$testlogdir"/"$(basename "$1")".perf -- "$@
 { monitor() { time "$@"; }; perf=0; }
 export -f monitor
 
-source "$selfdir"/util.sh
-
 trap 'set +e; exec &>/dev/null; kill -- $(jobs -p); wait; rm -rf "$tempdir"' EXIT
 export tempdir="$(mktemp -d)"
 export unshare perf perfargs
@@ -121,9 +119,12 @@ testcase() {
 		echo -n "$(BS 2)◴ "; sleep 0.25; echo -n "$(BS 2)◷ "; sleep 0.25
 		echo -n "$(BS 2)◶ "; sleep 0.25; echo -n "$(BS 2)◵ "; sleep 0.25
 	done &
+	exec {fd}<> >(:)
+	{ echo "source ${selfdir@Q}/util.sh"; cat; echo extwait; } >&$fd
+	eval exec $fd\</dev/fd/\$fd
 	local result=0
 	local command=(timeout --foreground "$timeout" bash -c
-	"set -m; trap 'kill -${kill@Q} -- -\$!' EXIT; bash -e & exec &>/dev/null; wait %1")
+	"set -m; trap 'kill -${kill@Q} -- -\$!' EXIT; bash -e /dev/fd/$fd & exec &>/dev/null; wait %1")
 	[[ $unshare != 0 ]] && command=(unshare -Upf --mount-proc "${command[@]}")
 	set -m; "${command[@]}" "$@" &>"$testlog" || result=$?; set +m
 	{ kill %1; wait %1; } 2>/dev/null || true; echo -n "$(BS 6): "
