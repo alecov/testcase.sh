@@ -48,7 +48,7 @@ extwait() {
 		waiterr[$job]=
 		alljobs[$job]=
 	done
-	local result=0 waited wait; while true; do
+	local result=0 waited wait=; while true; do
 		local waited_all=
 		local waited_any=
 		local waited_err=

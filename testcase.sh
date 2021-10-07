@@ -102,6 +102,9 @@ testcase() {
 	export testlogdir=$logdir$testname/
 	export testlog=$logdir$testname$logext
 	rm -rf "$testlogdir" "$testlog"; (
+	local logcatout=
+	local logcaterr=
+	local logcatlog=
 	cleanup() {
 		set +e; exec 2>/dev/null
 		[[ -z $logcatout ]] && head -vn-0 "$testlogdir"/*.out >>"$testlog"
@@ -138,14 +141,14 @@ testcase() {
 				echo ${F1}failure${RS}
 			fi;;
 	esac
-	if [[ $result != 0 ]]; then
+	if [[ $result -ne 0 ]]; then
 		echo "  Log file: $(realpath "$testlog")"
 		if [[ $fulldump == 1 ]]; then
 			echo "  Full output:"
 			sed 's/^/·	/' "$testlog"
 		else
 			echo "  Tail output:"
-			tail -n${taildump:-10} "$testlog" | sed 's/^/·	/'
+			tail -n"${taildump:-10}" "$testlog" | sed 's/^/·	/'
 		fi
 	fi
 	exit $result
