@@ -1,5 +1,5 @@
 @() {
-local -; set -e
+local -; set -ef
 BS() { :; }; export -f BS
 if [[ $color == 1 || $color != 0 && -t 1 && -t 2 ]]; then
 	[[ ! -v RS ]] && export RS=$(tput sgr0)
@@ -38,6 +38,7 @@ fi
 : ${logdir:=log}
 : ${logext:=log}
 : ${kill:=KILL}
+: ${dump:=failure=tail=10}
 
 export logdir
 export logext
@@ -82,6 +83,40 @@ then
 	echo -e "Tests will continue without performance analysis.\n" >&2
 fi
 
+local item type mode args
+declare -Ag dumpmode=()
+declare -Ag dumpargs=()
+for item in ${dump//:/ }; do
+	IFS== read type mode args <<<$item
+	case $type in
+		success)
+			dumpmode[0]=$mode
+			dumpargs[0]=$args;;
+		failure)
+			for ((type=1; type < 255; ++type)); do
+				dumpmode[$type]=$mode
+				dumpargs[$type]=$args
+			done;;
+		signal)
+			for ((type=127; type < 255; ++type)); do
+				dumpmode[$type]=$mode
+				dumpargs[$type]=$args
+			done;;
+		"*")
+			for ((type=0; type < 255; ++type)); do
+				dumpmode[$type]=$mode
+				dumpargs[$type]=$args
+			done;;
+		[!0-9]*)
+			type=$(($(kill -l "$type")+127))
+			dumpmode[$type]=$mode
+			dumpargs[$type]=$args;;
+		*)
+			dumpmode[$type]=$mode
+			dumpargs[$type]=$args;;
+	esac
+done
+
 [[ $perf != 0 ]] &&
 { perf record $perfargs -qo/dev/null true ||
 { perfargs=-m256; perf record $perfargs -qo/dev/null true; } } 2>/dev/null &&
@@ -112,7 +147,7 @@ testcase() {
 		kill -"$kill" -- $(jobs -p); wait
 		echo -n ${RS}
 	}
-	trap cleanup EXIT
+	set +f; trap cleanup EXIT
 	mkdir -p "$testlogdir"
 	echo -n "${BF}${F1}•${RS}${BF} Running testcase \"${F6}$testname${RS}${BF}\"...   "
 	[[ $spinner != 0 ]] && while true; do
@@ -142,16 +177,21 @@ testcase() {
 				echo ${F1}failure${RS}
 			fi;;
 	esac
-	if [[ $result -ne 0 ]]; then
-		echo "  Log file: $(realpath "$testlog")"
-		if [[ $fulldump == 1 ]]; then
+	local mode=${dumpmode[$result]}
+	local args=${dumpargs[$result]}
+	case $mode in
+		*)
+			echo "  Log file: $testlog";;&
+		full)
 			echo "  Full output:"
-			sed 's/^/·	/' "$testlog"
-		else
+			sed 's/^/·	/' "$testlog";;
+		head)
+			echo "  Head output:"
+			head -n"${args:-10}" "$testlog" | sed 's/^/·	/';;
+		tail)
 			echo "  Tail output:"
-			tail -n"${taildump:-10}" "$testlog" | sed 's/^/·	/'
-		fi
-	fi
+			tail -n"${args:-10}" "$testlog" | sed 's/^/·	/';;
+	esac
 	exit $result
 )}
 }; @ "$@"
