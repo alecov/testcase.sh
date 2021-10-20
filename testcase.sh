@@ -180,6 +180,7 @@ testcase() {
 	local mode=${dumpmode[$result]}
 	local args=${dumpargs[$result]}
 	case $mode in
+		"");;
 		*)
 			echo "  Log file: $testlog";;&
 		full)
