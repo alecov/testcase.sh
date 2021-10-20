@@ -106,10 +106,13 @@ spawn_waiterr() {
 	waiterr[$!]=
 }
 
-# semwait(): waits for a semaphore fd (a pipe) and synchronizes with all
-# processes listed for `extwait`.
+# semwait(): waits for a semaphore and synchronizes with `extwait`.
 #  To use a semaphore, create a pipe and connect it to an fd:
 #    exec 3<> >(:)
+#  To write to the semaphore, echo:
+#    echo >&3
+#  To await on the semaphore, read:
+#    read -u3
 semwait() {
 	local count; for ((count=0; count < ${2:-1}; ++count)); do
 		read -u${1:-3} & waitall[$!]= waitany[$!]=; extwait
